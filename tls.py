@@ -4,7 +4,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from cryptography.x509.base import Certificate
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.hashes import SHA256
 from cryptography.x509.oid import NameOID
 
@@ -70,7 +70,30 @@ def sign_certificate_key(
   return certificate
 
 
-def write_private_key(private_key: RSAPrivateKey, file_name: str):
+def generate_key_cert_for_host(
+    root_private_key: RSAPrivateKey,
+    root_certificate: Certificate,
+    host: str,
+    certificate_duration_days=CERTIFICATE_DURATION_DAYS
+) -> tuple[RSAPrivateKey, Certificate]:
+  private_key = generate_private_key()
+  csr = x509.CertificateSigningRequestBuilder() \
+      .subject_name(x509.Name([
+          x509.NameAttribute(NameOID.COMMON_NAME, u"rancher.localhost.com")
+      ])) \
+      .sign(private_key, SHA256(), default_backend())
+  certificate = x509.CertificateBuilder() \
+      .subject_name(csr.subject) \
+      .issuer_name(root_certificate.issuer) \
+      .public_key(csr.public_key()).serial_number(x509.random_serial_number()) \
+      .not_valid_before(datetime.datetime.utcnow()) \
+      .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=certificate_duration_days)) \
+      .add_extension(x509.SubjectAlternativeName([x509.DNSName(u"rancher.localhost.com")]), critical=False) \
+      .sign(root_private_key, SHA256(), default_backend())
+  return private_key, certificate
+
+
+def write_private_key(private_key: RSAPrivateKey, file_name: str) -> None:
   """Write private key to file
 
   Args:
@@ -85,7 +108,17 @@ def write_private_key(private_key: RSAPrivateKey, file_name: str):
     ))
 
 
-def read_certificate_key_from_file(file_name: str):
+def read_private_key_from_file(file_name: str) -> RSAPrivateKey:
+  with open(file_name, "rb") as file:
+    private_key = serialization.load_pem_private_key(
+        file.read(),
+        password=None,
+        backend=default_backend()
+    )
+  return private_key
+
+
+def read_certificate_key_from_file(file_name: str) -> Certificate:
   """Read certificate key from file
 
   Args:
@@ -97,12 +130,12 @@ def read_certificate_key_from_file(file_name: str):
   with open(file_name, "rb") as file:
     certificate = x509.load_pem_x509_certificate(
         file.read(),
-        default_backend()
+        backend=default_backend()
     )
   return certificate
 
 
-def write_certificate_file(certificate: Certificate, file_name: str):
+def write_certificate_file(certificate: Certificate, file_name: str) -> None:
   """Write certificate key to file
 
   Args:
