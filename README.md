@@ -13,6 +13,9 @@
     ./tls init
     ./tls sign localhost.com
     ```
+## Command
+  `tls init` : Generate a root key pair private key and certificate
+  `tls sign <hostname>` : Generate a key pair key and cert for [hostname]
 ## Build from source
 - Clone this repo
   ```bash
