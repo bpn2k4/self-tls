@@ -21,5 +21,5 @@ def print_certificate_data(cert_file):
 
 
 # Example usage
-cert_file = "gitlab-local.com.crt"
+cert_file = "local.com.crt"
 print_certificate_data(cert_file)

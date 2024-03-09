@@ -1,4 +1,6 @@
 import datetime
+from re import match as re_match
+from xmlrpc.client import Boolean
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
@@ -13,7 +15,7 @@ PUBLIC_EXPONENT = 65537
 COMMON_NAME = "Self TLS"
 ORGANIZATION_NAME = "Self TLS Inc."
 COUNTRY_NAME = "VN"
-CERTIFICATE_DURATION_DAYS = 365
+CERTIFICATE_DURATION_DAYS = 3650
 
 
 def generate_private_key(key_size=KEY_SIZE, public_exponent=PUBLIC_EXPONENT) -> RSAPrivateKey:
@@ -36,10 +38,13 @@ def generate_private_key(key_size=KEY_SIZE, public_exponent=PUBLIC_EXPONENT) -> 
 
 def sign_certificate_key(
     private_key: RSAPrivateKey,
-    common_name=COMMON_NAME,
-    organization_name=ORGANIZATION_NAME,
-    country_name=COUNTRY_NAME,
-    certificate_duration_days=CERTIFICATE_DURATION_DAYS
+    certificate_duration_days=CERTIFICATE_DURATION_DAYS,
+    subject_common_name=COMMON_NAME,
+    subject_organization_name=ORGANIZATION_NAME,
+    subject_country_name=COUNTRY_NAME,
+    issuer_common_name=COMMON_NAME,
+    issuer_organization_name=ORGANIZATION_NAME,
+    issuer_country_name=COUNTRY_NAME,
 ) -> Certificate:
   """Sign a new certificate key
 
@@ -53,10 +58,15 @@ def sign_certificate_key(
   Returns:
       Certificate: A Certificate
   """
-  subject = issuer = x509.Name([
-      x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-      x509.NameAttribute(NameOID.ORGANIZATION_NAME, organization_name),
-      x509.NameAttribute(NameOID.COUNTRY_NAME, country_name)
+  subject = x509.Name([
+      x509.NameAttribute(NameOID.COMMON_NAME, subject_common_name),
+      x509.NameAttribute(NameOID.ORGANIZATION_NAME, subject_organization_name),
+      x509.NameAttribute(NameOID.COUNTRY_NAME, subject_country_name)
+  ])
+  issuer = x509.Name([
+      x509.NameAttribute(NameOID.COMMON_NAME, issuer_common_name),
+      x509.NameAttribute(NameOID.ORGANIZATION_NAME, issuer_organization_name),
+      x509.NameAttribute(NameOID.COUNTRY_NAME, issuer_country_name)
   ])
   certificate = x509 \
       .CertificateBuilder() \
@@ -70,16 +80,31 @@ def sign_certificate_key(
   return certificate
 
 
+def is_valid_domain(domain: str) -> bool:
+  """Check a domain is valid
+
+  Args:
+      domain (str): Domain
+
+  Returns:
+      bool: Domain is valid or not
+  """
+  domain_pattern = r"^(?:(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.)+[A-Za-z]{2,6}$"
+  return re_match(domain_pattern, domain) is not None
+
+
 def generate_key_cert_for_host(
     root_private_key: RSAPrivateKey,
     root_certificate: Certificate,
     host: str,
     certificate_duration_days=CERTIFICATE_DURATION_DAYS
 ) -> tuple[RSAPrivateKey, Certificate]:
+  if not is_valid_domain(host):
+    raise Exception("Invalid domain")
   private_key = generate_private_key()
   csr = x509.CertificateSigningRequestBuilder() \
       .subject_name(x509.Name([
-          x509.NameAttribute(NameOID.COMMON_NAME, u"rancher.localhost.com")
+          x509.NameAttribute(NameOID.COMMON_NAME, host)
       ])) \
       .sign(private_key, SHA256(), default_backend())
   certificate = x509.CertificateBuilder() \
@@ -88,7 +113,7 @@ def generate_key_cert_for_host(
       .public_key(csr.public_key()).serial_number(x509.random_serial_number()) \
       .not_valid_before(datetime.datetime.utcnow()) \
       .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=certificate_duration_days)) \
-      .add_extension(x509.SubjectAlternativeName([x509.DNSName(u"rancher.localhost.com")]), critical=False) \
+      .add_extension(x509.SubjectAlternativeName([x509.DNSName(host)]), critical=False) \
       .sign(root_private_key, SHA256(), default_backend())
   return private_key, certificate
 
