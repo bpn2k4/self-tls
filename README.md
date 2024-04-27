@@ -110,6 +110,7 @@ It will generate 4 files into folder `cert`. <br>
 
 - Then run:
   ```bash
+  docker compose up -d
   curl https://localhost.com
   ```
 
