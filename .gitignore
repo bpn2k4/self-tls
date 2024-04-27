@@ -1,9 +1,2 @@
-build
-dist
-*.spec
-
-venv
-__pycache__
 *.crt
 *.key
-test*.py

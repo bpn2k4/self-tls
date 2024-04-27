@@ -1,2 +1,0 @@
-cryptography==42.0.5
-pyinstaller==6.4.0

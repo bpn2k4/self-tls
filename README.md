@@ -1,54 +1,117 @@
-# SELF TLS
+## Self TLS
 
-## Quick start
-  - Window usage:
-    ```bash
-    curl -O https://github.com/bpn2k4/self-tls/releases/download/latest/tls.exe
-    tls init
-    tls sign localhost.com
-    ```
-  - Linux usage:
-    ```bash
-    curl -O https://github.com/bpn2k4/self-tls/releases/download/latest/tls
-    ./tls init
-    ./tls sign localhost.com
-    ```
-## Command
-  `tls init` : Generate a root key pair private key and certificate
-  `tls sign <hostname>` : Generate a key pair key and cert for [hostname]
-## Build from source
-- Clone this repo
+### Run
+- Go to anywhere have Go lang =)) <br>
+  
+- Change var hosts in `main.go` at line `63` if need. <br>
+  
+- Run this command: <br>
   ```bash
-  git clone https://github.com/bpn2k4/self-tls.git
+  git clone https://github.com/bpn2k4/self-tls
   cd self-tls
+  go run main.go
   ```
-- Create a environment
-  + Window usage:
-    ```bash
-    virtualenv venv
-    .\venv\Scripts\activate
-    ```
-      or
-    ```bash
-    python -m venv venv
-    .\venv\Scripts\activate
-    ```
-  + Linux usage:
-    ```bash
-    virtualenv venv
-    source ./venv/Scripts/activate
-    ```
-    or
-    ```bash
-    python3 -m venv venv
-    source ./venv/Scripts/activate
-    ```
-- Install requirement:
+
+It will generate 4 files into folder `cert`. <br>
+- `ca.crt`: Root CA certificate, import it to system, Chrome, FireFox,... to use tls.
+  
+- `ca.key`: Root private key. Don't care about this file.
+  
+- `ssl.crt`: Certificate for host
+  
+- `ssl.key`: Private for host
+
+
+### How to use tls (ssl)
+- First, import root ca certificate to system:
   ```bash
-  pip install -r requirements.txt
+  cd cert
+  sudo cp ca.crt /usr/local/share/ca-certificates/
+  sudo update-ca-certificates
   ```
-- Build:
+
+- Config hosts:
   ```bash
-  pyinstaller --onefile --name tls tool.py
-  cd dist
+  cat <<EOF | sudo tee -a /etc/hosts
+  127.0.0.1 localhost.com
+  EOF
   ```
+
+#### Use with Nginx
+- Install Nginx
+- Run this command:
+  ```bash
+  cd cert
+  sudo mkdir -p /tmp/cert
+  sudo cp ssl.crt ssl.key /tmp/cert
+  ```
+- Config nginx:
+  ```bash
+  sudo vim /etc/nginx/conf.d/nginx.conf
+
+  ### Add these line to this file
+  server {
+    listen 443 ssl;
+    server_name localhost.com;
+    ssl_certificate /cert/ssl.crt;
+    ssl_certificate_key /cert/ssl.key;
+    location / {
+        root   /usr/share/nginx/html;
+        index  index.html index.htm;
+    }
+  }
+
+  ### Then restart Nginx
+  sudo service nginx restart
+  ```
+
+- Then run:
+  ```bash
+  curl https://localhost.com
+  ```
+
+#### Use with Docker Nginx
+- Go to cert folder, create 2 file: `docker-compose.yaml`, `nginx.conf`
+  ```bash
+  cd cert
+  vim docker-compose.yaml
+  vim nginx.conf
+  ```
+
+- `docker-compose.yaml` file
+  ```bash
+  name: "nginx"
+
+  services:
+    nginx:
+      image: nginx:1.25
+      container_name: nginx
+      ports:
+        - 80:80
+        - 443:443
+      volumes:
+        - .:/cert
+        - ./nginx.conf:/etc/nginx/conf.d/default.conf
+  ```
+
+- `nginx.conf` file
+  ```bash
+  server {
+    listen 443 ssl;
+    server_name localhost.com;
+    ssl_certificate /cert/ssl.crt;
+    ssl_certificate_key /cert/ssl.key;
+    location / {
+        root   /usr/share/nginx/html;
+        index  index.html index.htm;
+    }
+  }
+  ```
+
+- Then run:
+  ```bash
+  curl https://localhost.com
+  ```
+
+#### Use with Chrome
+#### Use with FireFox
