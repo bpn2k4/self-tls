@@ -1,2 +1,4 @@
-*.crt
-*.key
+root.crt
+root.key
+server.crt
+server.key
